@@ -50,3 +50,14 @@ class WrooteConfigTestCase(TestCase):
     def test_rejects_a_non_mapping_section(self) -> None:
         with self.assertRaises(ConfigError):
             _parse([{"voip_call_push_rule": True}])
+
+    def test_rejects_falsy_non_mapping_values(self) -> None:
+        # `wroote: false` or `wroote: ""` used to be read as an empty section.
+        for value in (False, 0, "", []):
+            with self.assertRaises(ConfigError, msg=repr(value)):
+                _parse(value)
+
+    def test_rejects_unknown_options(self) -> None:
+        # A typo must not silently leave the feature off.
+        with self.assertRaises(ConfigError):
+            _parse({"voip_call_pushrule": True})

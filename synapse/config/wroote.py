@@ -24,14 +24,27 @@ from synapse.types import JsonDict
 
 from ._base import Config, ConfigError
 
+_KNOWN_OPTIONS = frozenset({"voip_call_push_rule"})
+
 
 class WrooteConfig(Config):
     section = "wroote"
 
     def read_config(self, config: JsonDict, **kwargs: Any) -> None:
-        wroote_config = config.get("wroote") or {}
+        wroote_config = config.get("wroote")
+        if wroote_config is None:
+            wroote_config = {}
         if not isinstance(wroote_config, dict):
             raise ConfigError("must be a dictionary", ("wroote",))
+        # Unknown keys are refused rather than ignored: a typo would otherwise
+        # silently leave a feature switched off.
+        unknown = sorted(set(wroote_config) - _KNOWN_OPTIONS)
+        if unknown:
+            raise ConfigError(
+                f"unknown option(s): {', '.join(unknown)}; known: "
+                f"{', '.join(sorted(_KNOWN_OPTIONS))}",
+                ("wroote",),
+            )
 
         # Server-default push rule that rings on EuroChat call invites
         # (`eu.eurochat.call.invite` with `content.status: ringing`). Replaces the

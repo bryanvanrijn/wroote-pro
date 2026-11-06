@@ -59,20 +59,23 @@ class WrooteCallPushRuleTestCase(HomeserverTestCase):
         self.room_id = self.helper.create_room_as(self.alice, tok=self.token)
         self.event_creation_handler = self.hs.get_event_creation_handler()
 
-    def _actions_for_alice(self, content: JsonDict) -> list | None:
-        """Run the push rules for a call-invite state event sent by someone else
-        and return the actions Alice gets, or None when nothing notifies."""
+    def _actions_for_alice(
+        self, content: JsonDict, state_key: str | None = ""
+    ) -> list | None:
+        """Run the push rules for a call invite sent by someone else and return the
+        actions Alice gets, or None when nothing notifies. By default the invite is
+        a state event with state key "", as the EuroChat clients send it; with
+        `state_key=None` it is a timeline event."""
+        event_dict: JsonDict = {
+            "type": CALL_INVITE_TYPE,
+            "room_id": self.room_id,
+            "content": content,
+            "sender": f"@bob:{self.hs.hostname}",
+        }
+        if state_key is not None:
+            event_dict["state_key"] = state_key
         event, unpersisted_context = self.get_success(
-            self.event_creation_handler.create_event(
-                self.requester,
-                {
-                    "type": CALL_INVITE_TYPE,
-                    "state_key": "",
-                    "room_id": self.room_id,
-                    "content": content,
-                    "sender": f"@bob:{self.hs.hostname}",
-                },
-            )
+            self.event_creation_handler.create_event(self.requester, event_dict)
         )
         context = self.get_success(unpersisted_context.persist(event))
         bulk_evaluator = BulkPushRuleEvaluator(self.hs)
@@ -109,6 +112,33 @@ class WrooteCallPushRuleTestCase(HomeserverTestCase):
     @override_config(ENABLED)
     def test_cancelled_call_invite_does_not_ring(self) -> None:
         self.assertIsNone(self._actions_for_alice(CANCELLED))
+
+    @override_config(ENABLED)
+    def test_timeline_call_invite_does_not_ring(self) -> None:
+        """Only the state event rings. A timeline event of the same type needs only
+        `events_default` (power level 0), so any member could make phones ring."""
+        self.assertIsNone(self._actions_for_alice(RINGING, state_key=None))
+
+    @override_config(ENABLED)
+    def test_user_can_change_the_actions(self) -> None:
+        channel = self.make_request(
+            "PUT",
+            f"/pushrules/global/override/{RULE_ID}/actions",
+            {"actions": ["notify"]},
+            access_token=self.token,
+        )
+        self.assertEqual(channel.code, 200, channel.json_body)
+        self.assertEqual(self._actions_for_alice(RINGING), ["notify"])
+
+    def test_rule_is_not_addressable_when_disabled(self) -> None:
+        """Without the option the rule does not exist, also not for the API."""
+        channel = self.make_request(
+            "PUT",
+            f"/pushrules/global/override/{RULE_ID}/enabled",
+            {"enabled": False},
+            access_token=self.token,
+        )
+        self.assertEqual(channel.code, 404, channel.json_body)
 
     @override_config(ENABLED)
     def test_rule_is_listed_directly_after_master(self) -> None:

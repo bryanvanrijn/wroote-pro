@@ -97,6 +97,14 @@ pub const BASE_PREPEND_OVERRIDE_RULES: &[PushRule] = &[
                 key: Cow::Borrowed("type"),
                 pattern: Cow::Borrowed("eu.eurochat.call.invite"),
             })),
+            // Only the state event (state key "") rings. Sending state needs
+            // `state_default` (power level 50 by default); a timeline event of
+            // this type would only need `events_default` (0), so any member
+            // could make everyone's phone ring.
+            Condition::Known(KnownCondition::EventMatch(EventMatchCondition {
+                key: Cow::Borrowed("state_key"),
+                pattern: Cow::Borrowed(""),
+            })),
             Condition::Known(KnownCondition::EventMatch(EventMatchCondition {
                 key: Cow::Borrowed("content.status"),
                 pattern: Cow::Borrowed("ringing"),
@@ -876,17 +884,34 @@ mod tests {
         )
     }
 
-    /// Builds an evaluator for an event of the given type with an optional
-    /// `content.status` field, sent to a room of ten members without mentions.
+    /// Builds an evaluator for a state event (state key "") of the given type
+    /// with an optional `content.status` field, sent to a room of ten members
+    /// without mentions. This is how EuroChat clients send call invites.
     fn build_status_evaluator(
         event_type: &'static str,
         status: Option<&'static str>,
+    ) -> PushRuleEvaluator {
+        build_call_evaluator(event_type, status, Some(""))
+    }
+
+    /// Like `build_status_evaluator`, with an explicit state key; `None` builds
+    /// a timeline (non-state) event.
+    fn build_call_evaluator(
+        event_type: &'static str,
+        status: Option<&'static str>,
+        state_key: Option<&'static str>,
     ) -> PushRuleEvaluator {
         let mut flattened_keys = BTreeMap::new();
         flattened_keys.insert(
             "type".to_string(),
             JsonValue::Value(SimpleJsonValue::Str(Cow::Borrowed(event_type))),
         );
+        if let Some(state_key) = state_key {
+            flattened_keys.insert(
+                "state_key".to_string(),
+                JsonValue::Value(SimpleJsonValue::Str(Cow::Borrowed(state_key))),
+            );
+        }
         if let Some(status) = status {
             flattened_keys.insert(
                 "content.status".to_string(),
@@ -1026,6 +1051,25 @@ mod tests {
             let actions = evaluator.run(&push_rules_with(false, true), Some(ALICE), None, None);
             assert_eq!(actions, vec![], "status {status:?} must not ring");
         }
+    }
+
+    #[test]
+    fn test_wroote_call_invite_ignores_timeline_events() {
+        // Same type and content, but sent as a timeline event: must not ring,
+        // otherwise any member with power level 0 could ring everyone.
+        let evaluator = build_call_evaluator(EUROCHAT_CALL_INVITE_TYPE, Some("ringing"), None);
+
+        let actions = evaluator.run(&push_rules_with(false, true), Some(ALICE), None, None);
+        assert_eq!(actions, vec![]);
+    }
+
+    #[test]
+    fn test_wroote_call_invite_ignores_non_empty_state_keys() {
+        let evaluator =
+            build_call_evaluator(EUROCHAT_CALL_INVITE_TYPE, Some("ringing"), Some("@bob:test"));
+
+        let actions = evaluator.run(&push_rules_with(false, true), Some(ALICE), None, None);
+        assert_eq!(actions, vec![]);
     }
 
     #[test]
