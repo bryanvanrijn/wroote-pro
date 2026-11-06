@@ -60,6 +60,7 @@ from synapse.config import (  # noqa: F401
     user_types,
     voip,
     workers,
+    wroote,
 )
 from synapse.types import StrSequence
 
@@ -126,6 +127,7 @@ class RootConfig:
     task_scheduler: task_scheduler.TaskSchedulerConfig
     mas: mas.MasConfig
     matrix_rtc: matrixrtc.MatrixRtcConfig
+    wroote: wroote.WrooteConfig
 
     config_classes: list[type["Config"]] = ...
     config_files: list[str]

@@ -60,14 +60,53 @@ const RING_ACTION: Action = Action::SetTweak(SetTweak {
     other_keys: Value::Null,
 });
 
-pub const BASE_PREPEND_OVERRIDE_RULES: &[PushRule] = &[PushRule {
-    rule_id: Cow::Borrowed("global/override/.m.rule.master"),
-    priority_class: 5,
-    conditions: Cow::Borrowed(&[]),
-    actions: Cow::Borrowed(&[]),
-    default: true,
-    default_enabled: false,
-}];
+/// Wroote Pro: server-default rule for EuroChat call invites.
+///
+/// EuroChat clients ring on `eu.eurochat.call.invite` events whose
+/// `content.status` is `ringing`. Cancellations carry `active: false` and no
+/// `status`, so they never match. Shipping this as a server-default rule
+/// replaces a per-user rule that a module used to write on every login, which
+/// forced all logins onto the push-rules writer.
+///
+/// It sits directly after `.m.rule.master`, before the user's own override
+/// rules, so it always wins. The `sound` tweak is what makes the HTTP pusher
+/// send the push with `prio: high` (see `synapse/push/httppusher.py`); a
+/// user override that matched first could otherwise demote a ringing call to
+/// a low-priority push. Users can still disable the rule or change its
+/// actions through the push rules API, and the master rule still mutes all.
+///
+/// The rule is filtered out unless the `wroote.voip_call_push_rule` config
+/// option is enabled, so a server without that option behaves exactly like
+/// upstream Synapse.
+pub const WROOTE_VOIP_CALL_RULE_ID: &str = "global/override/.eu.eurochat.rule.call_invite";
+
+pub const BASE_PREPEND_OVERRIDE_RULES: &[PushRule] = &[
+    PushRule {
+        rule_id: Cow::Borrowed("global/override/.m.rule.master"),
+        priority_class: 5,
+        conditions: Cow::Borrowed(&[]),
+        actions: Cow::Borrowed(&[]),
+        default: true,
+        default_enabled: false,
+    },
+    PushRule {
+        rule_id: Cow::Borrowed(WROOTE_VOIP_CALL_RULE_ID),
+        priority_class: 5,
+        conditions: Cow::Borrowed(&[
+            Condition::Known(KnownCondition::EventMatch(EventMatchCondition {
+                key: Cow::Borrowed("type"),
+                pattern: Cow::Borrowed("eu.eurochat.call.invite"),
+            })),
+            Condition::Known(KnownCondition::EventMatch(EventMatchCondition {
+                key: Cow::Borrowed("content.status"),
+                pattern: Cow::Borrowed("ringing"),
+            })),
+        ]),
+        actions: Cow::Borrowed(&[Action::Notify, RING_ACTION, HIGHLIGHT_FALSE_ACTION]),
+        default: true,
+        default_enabled: true,
+    },
+];
 
 pub const BASE_APPEND_OVERRIDE_RULES: &[PushRule] = &[
     PushRule {
@@ -779,11 +818,15 @@ mod tests {
     use std::borrow::Cow;
     use std::collections::BTreeMap;
 
-    use super::RING_ACTION;
+    use super::{HIGHLIGHT_FALSE_ACTION, RING_ACTION, WROOTE_VOIP_CALL_RULE_ID};
     use crate::push::evaluator::PushRuleEvaluator;
-    use crate::push::{Action, FilteredPushRules, JsonValue, PushRules, SimpleJsonValue};
+    use crate::push::{
+        Action, Condition, EventMatchCondition, FilteredPushRules, JsonValue, KnownCondition,
+        PushRule, PushRules, SetTweak, SimpleJsonValue, TweakValue,
+    };
 
     const RTC_NOTIFICATION_TYPE: &str = "org.matrix.msc4075.rtc.notification";
+    const EUROCHAT_CALL_INVITE_TYPE: &str = "eu.eurochat.call.invite";
     const ALICE: &str = "@alice:example.org";
     const BOB: &str = "@bob:example.org";
 
@@ -793,12 +836,26 @@ mod tests {
     /// MSC4075 rules, which have identical actions and come immediately
     /// before them in the override list.
     fn push_rules(msc4075_enabled: bool) -> FilteredPushRules {
+        push_rules_with(msc4075_enabled, false)
+    }
+
+    fn push_rules_with(msc4075_enabled: bool, wroote_voip_call_push_rule: bool) -> FilteredPushRules {
+        push_rules_custom(msc4075_enabled, wroote_voip_call_push_rule, vec![], BTreeMap::new())
+    }
+
+    fn push_rules_custom(
+        msc4075_enabled: bool,
+        wroote_voip_call_push_rule: bool,
+        user_rules: Vec<PushRule>,
+        extra_enabled: BTreeMap<String, bool>,
+    ) -> FilteredPushRules {
         let mut enabled_map = BTreeMap::new();
         enabled_map.insert("global/override/.m.rule.is_user_mention".to_string(), false);
         enabled_map.insert("global/override/.m.rule.is_room_mention".to_string(), false);
+        enabled_map.extend(extra_enabled);
 
         FilteredPushRules::py_new(
-            PushRules::new(vec![]),
+            PushRules::new(user_rules),
             enabled_map,
             false, // msc1767_enabled
             false, // msc3381_polls_enabled
@@ -807,7 +864,39 @@ mod tests {
             msc4075_enabled,
             false, // msc4210_enabled
             false, // msc4306_enabled
+            wroote_voip_call_push_rule,
         )
+    }
+
+    /// Builds an evaluator for an event of the given type with an optional
+    /// `content.status` field, sent to a room of ten members without mentions.
+    fn build_status_evaluator(event_type: &'static str, status: Option<&'static str>) -> PushRuleEvaluator {
+        let mut flattened_keys = BTreeMap::new();
+        flattened_keys.insert(
+            "type".to_string(),
+            JsonValue::Value(SimpleJsonValue::Str(Cow::Borrowed(event_type))),
+        );
+        if let Some(status) = status {
+            flattened_keys.insert(
+                "content.status".to_string(),
+                JsonValue::Value(SimpleJsonValue::Str(Cow::Borrowed(status))),
+            );
+        }
+
+        PushRuleEvaluator::py_new(
+            flattened_keys,
+            false,
+            10,
+            Some(0),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            false,
+            vec![],
+            false,
+            false,
+            false,
+        )
+        .unwrap()
     }
 
     /// Builds an evaluator for an event of the given type whose `m.mentions`
@@ -903,5 +992,127 @@ mod tests {
 
         let actions = evaluator.run(&push_rules(false), Some(ALICE), None, None);
         assert_eq!(actions, vec![]);
+    }
+
+    #[test]
+    fn test_wroote_call_invite_rings_when_enabled() {
+        let evaluator = build_status_evaluator(EUROCHAT_CALL_INVITE_TYPE, Some("ringing"));
+
+        let actions = evaluator.run(&push_rules_with(false, true), Some(ALICE), None, None);
+        assert_eq!(
+            actions,
+            vec![Action::Notify, RING_ACTION, HIGHLIGHT_FALSE_ACTION]
+        );
+    }
+
+    #[test]
+    fn test_wroote_call_invite_ignores_cancellations() {
+        // A cancellation has no `status` (and `active: false`); an ended call
+        // has another status. Neither may ring.
+        for status in [None, Some("ended")] {
+            let evaluator = build_status_evaluator(EUROCHAT_CALL_INVITE_TYPE, status);
+
+            let actions = evaluator.run(&push_rules_with(false, true), Some(ALICE), None, None);
+            assert_eq!(actions, vec![], "status {status:?} must not ring");
+        }
+    }
+
+    #[test]
+    fn test_wroote_call_invite_ignores_other_event_types() {
+        let evaluator = build_status_evaluator("org.example.other", Some("ringing"));
+
+        let actions = evaluator.run(&push_rules_with(false, true), Some(ALICE), None, None);
+        assert_eq!(actions, vec![]);
+    }
+
+    /// A user override rule that also matches call invites, like the rule the
+    /// EuroChat API writes for the iOS call-signaling pusher.
+    fn user_call_rule_with_priority_tweak() -> PushRule {
+        PushRule {
+            rule_id: Cow::Borrowed("global/override/eurochat.call-signaling"),
+            priority_class: 5,
+            conditions: Cow::Owned(vec![Condition::Known(KnownCondition::EventMatch(
+                EventMatchCondition {
+                    key: Cow::Borrowed("type"),
+                    pattern: Cow::Borrowed(EUROCHAT_CALL_INVITE_TYPE),
+                },
+            ))]),
+            actions: Cow::Owned(vec![
+                Action::Notify,
+                Action::SetTweak(SetTweak {
+                    set_tweak: Cow::Borrowed("priority"),
+                    value: Some(TweakValue::String(Cow::Borrowed("high"))),
+                    other_keys: serde_json::Value::Null,
+                }),
+            ]),
+            default: false,
+            default_enabled: true,
+        }
+    }
+
+    #[test]
+    fn test_wroote_call_invite_wins_over_user_override_rules() {
+        // The server rule must come before user overrides, so the `sound`
+        // tweak (which makes the pusher send `prio: high`) is always applied.
+        let evaluator = build_status_evaluator(EUROCHAT_CALL_INVITE_TYPE, Some("ringing"));
+        let rules = push_rules_custom(
+            false,
+            true,
+            vec![user_call_rule_with_priority_tweak()],
+            BTreeMap::new(),
+        );
+
+        let actions = evaluator.run(&rules, Some(ALICE), None, None);
+        assert_eq!(
+            actions,
+            vec![Action::Notify, RING_ACTION, HIGHLIGHT_FALSE_ACTION]
+        );
+    }
+
+    #[test]
+    fn test_wroote_call_invite_respects_master_rule_and_user_disable() {
+        let evaluator = build_status_evaluator(EUROCHAT_CALL_INVITE_TYPE, Some("ringing"));
+
+        // Master rule on: nothing notifies.
+        let mut master_on = BTreeMap::new();
+        master_on.insert("global/override/.m.rule.master".to_string(), true);
+        let actions = evaluator.run(
+            &push_rules_custom(false, true, vec![], master_on),
+            Some(ALICE),
+            None,
+            None,
+        );
+        assert_eq!(actions, vec![]);
+
+        // The user disabled the server rule: no ring from it.
+        let mut rule_off = BTreeMap::new();
+        rule_off.insert(WROOTE_VOIP_CALL_RULE_ID.to_string(), false);
+        let actions = evaluator.run(
+            &push_rules_custom(false, true, vec![], rule_off),
+            Some(ALICE),
+            None,
+            None,
+        );
+        assert_eq!(actions, vec![]);
+    }
+
+    #[test]
+    fn test_wroote_call_invite_rule_is_omitted_when_disabled() {
+        let evaluator = build_status_evaluator(EUROCHAT_CALL_INVITE_TYPE, Some("ringing"));
+
+        let actions = evaluator.run(&push_rules_with(false, false), Some(ALICE), None, None);
+        assert_eq!(actions, vec![]);
+
+        // The rule must not even be visible to clients when the option is off.
+        let visible = push_rules_with(false, false)
+            .rules()
+            .iter()
+            .any(|(rule, _)| rule.rule_id == WROOTE_VOIP_CALL_RULE_ID);
+        assert!(!visible);
+        let visible = push_rules_with(false, true)
+            .rules()
+            .iter()
+            .any(|(rule, _)| rule.rule_id == WROOTE_VOIP_CALL_RULE_ID);
+        assert!(visible);
     }
 }

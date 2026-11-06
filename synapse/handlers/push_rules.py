@@ -51,7 +51,7 @@ class PushRulesHandler:
         self._served_default_rule_ids: frozenset[str] = frozenset(
             rule.rule_id
             for rule, _ in filter_push_rules(
-                PushRules([]), {}, hs.config.experimental
+                PushRules([]), {}, hs.config.experimental, hs.config.wroote
             ).rules()
         )
 

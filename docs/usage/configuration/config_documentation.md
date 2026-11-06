@@ -4930,3 +4930,22 @@ auto_accept_invites:
   only_from_local_users: true
   worker_to_run_on: worker_1
 ```
+---
+## Wroote Pro
+
+Options that only exist in Wroote Pro, a homeserver for the Matrix protocol based on Synapse.
+
+---
+### `wroote`
+
+*(object)* Options that only exist in Wroote Pro. Every option defaults to upstream Synapse behaviour, so a config without this section runs exactly like upstream Synapse.
+
+This setting has the following sub-options:
+
+* `voip_call_push_rule` (boolean): Adds a server-default push rule that rings on EuroChat call invites: `eu.eurochat.call.invite` events whose `content.status` is `ringing`. The rule comes directly after `.m.rule.master`, before the user's own override rules, so a ringing call is always pushed with high priority. Users can still disable it or change its actions through the push rules API. Replaces the per-user rule that the `eurochat_voip_pushrules` module wrote on every login. Defaults to `false`.
+
+Example configuration:
+```yaml
+wroote:
+  voip_call_push_rule: true
+```
