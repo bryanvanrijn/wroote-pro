@@ -138,7 +138,11 @@ class WrooteCallPushRuleTestCase(HomeserverTestCase):
             {
                 "conditions": [
                     {"kind": "event_match", "key": "type", "pattern": CALL_INVITE_TYPE},
-                    {"kind": "event_match", "key": "content.status", "pattern": "ringing"},
+                    {
+                        "kind": "event_match",
+                        "key": "content.status",
+                        "pattern": "ringing",
+                    },
                 ],
                 "actions": ["notify", {"set_tweak": "priority", "value": "high"}],
             },

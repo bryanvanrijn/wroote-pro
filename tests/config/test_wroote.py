@@ -38,7 +38,9 @@ class WrooteConfigTestCase(TestCase):
         self.assertFalse(_parse({}).wroote.voip_call_push_rule)
 
     def test_voip_call_push_rule_enabled(self) -> None:
-        self.assertTrue(_parse({"voip_call_push_rule": True}).wroote.voip_call_push_rule)
+        self.assertTrue(
+            _parse({"voip_call_push_rule": True}).wroote.voip_call_push_rule
+        )
 
     def test_rejects_a_non_boolean(self) -> None:
         # "true" as a string is a common YAML mistake; refuse it instead of guessing.
