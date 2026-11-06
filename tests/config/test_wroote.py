@@ -53,7 +53,8 @@ class WrooteConfigTestCase(TestCase):
 
     def test_rejects_falsy_non_mapping_values(self) -> None:
         # `wroote: false` or `wroote: ""` used to be read as an empty section.
-        for value in (False, 0, "", []):
+        values: tuple[Any, ...] = (False, 0, "", [])
+        for value in values:
             with self.assertRaises(ConfigError, msg=repr(value)):
                 _parse(value)
 

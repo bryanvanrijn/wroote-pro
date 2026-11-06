@@ -14,6 +14,8 @@
 """Tests for the Wroote Pro server-default push rule for EuroChat call invites
 (`wroote.voip_call_push_rule`)."""
 
+from typing import Any
+
 from twisted.internet.testing import MemoryReactor
 
 from synapse.push.bulk_push_rule_evaluator import BulkPushRuleEvaluator
@@ -28,14 +30,16 @@ from tests.unittest import HomeserverTestCase, override_config
 
 CALL_INVITE_TYPE = "eu.eurochat.call.invite"
 RULE_ID = ".eu.eurochat.rule.call_invite"
+LEGACY_MODULE_RULE_ID = "eu.eurochat.voip.call.invite"
 ENABLED = {"wroote": {"voip_call_push_rule": True}}
 
-# What the EuroChat web client sends to start ringing and to cancel
-# (packages/web/src/services/matrixClient.ts, sendStateEvent with state key "").
+# What the EuroChat clients send to start ringing and to cancel: a state event with
+# state key "" (web: packages/web/src/services/matrixClient.ts; iOS:
+# MatrixService.sendCallInvite in wroote-ios).
 RINGING = {"active": True, "status": "ringing", "call_id": "c1"}
 CANCELLED = {"active": False, "call_id": "c1"}
 
-RING_ACTIONS = [
+RING_ACTIONS: list[str | dict[str, Any]] = [
     "notify",
     {"set_tweak": "sound", "value": "ring"},
     {"set_tweak": "highlight", "value": False},
@@ -129,6 +133,51 @@ class WrooteCallPushRuleTestCase(HomeserverTestCase):
         )
         self.assertEqual(channel.code, 200, channel.json_body)
         self.assertEqual(self._actions_for_alice(RINGING), ["notify"])
+
+    def _add_legacy_module_rule(self) -> None:
+        """The per-user rule the `eurochat_voip_pushrules` module writes on login:
+        bare rule id, same conditions and actions as the server rule."""
+        self.get_success(
+            self.hs.get_datastores().main.add_push_rule(
+                self.alice,
+                LEGACY_MODULE_RULE_ID,
+                priority_class=5,
+                conditions=[
+                    {"kind": "event_match", "key": "type", "pattern": CALL_INVITE_TYPE},
+                    {
+                        "kind": "event_match",
+                        "key": "content.status",
+                        "pattern": "ringing",
+                    },
+                ],
+                actions=RING_ACTIONS,
+            )
+        )
+
+    @override_config(ENABLED)
+    def test_no_double_notification_with_the_legacy_module_rule(self) -> None:
+        """During the transition the module rule and the server rule both match. The
+        first match wins, so Alice gets exactly one set of actions: one push.
+        (`_actions_for_alice` asserts a single row.)"""
+        self._add_legacy_module_rule()
+        self.assertEqual(self._actions_for_alice(RINGING), RING_ACTIONS)
+
+    @override_config(ENABLED)
+    def test_legacy_module_rule_still_rings_when_the_server_rule_is_disabled(
+        self,
+    ) -> None:
+        """Rollout requirement, not a defect of the server rule: while the module's
+        stored rule exists, disabling the server rule does not stop the ring. Remove
+        the module and its stored rules when enabling `voip_call_push_rule`."""
+        self._add_legacy_module_rule()
+        channel = self.make_request(
+            "PUT",
+            f"/pushrules/global/override/{RULE_ID}/enabled",
+            {"enabled": False},
+            access_token=self.token,
+        )
+        self.assertEqual(channel.code, 200, channel.json_body)
+        self.assertEqual(self._actions_for_alice(RINGING), RING_ACTIONS)
 
     def test_rule_is_not_addressable_when_disabled(self) -> None:
         """Without the option the rule does not exist, also not for the API."""

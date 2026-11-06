@@ -1065,8 +1065,11 @@ mod tests {
 
     #[test]
     fn test_wroote_call_invite_ignores_non_empty_state_keys() {
-        let evaluator =
-            build_call_evaluator(EUROCHAT_CALL_INVITE_TYPE, Some("ringing"), Some("@bob:test"));
+        let evaluator = build_call_evaluator(
+            EUROCHAT_CALL_INVITE_TYPE,
+            Some("ringing"),
+            Some("@bob:test"),
+        );
 
         let actions = evaluator.run(&push_rules_with(false, true), Some(ALICE), None, None);
         assert_eq!(actions, vec![]);
