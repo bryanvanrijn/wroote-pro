@@ -44,6 +44,12 @@ RING_ACTIONS: list[str | dict[str, Any]] = [
     {"set_tweak": "sound", "value": "ring"},
     {"set_tweak": "highlight", "value": False},
 ]
+# Recognisable actions for the legacy module rule in the tests (see
+# `_add_legacy_module_rule`), so a result shows which rule matched.
+LEGACY_TEST_ACTIONS: list[str | dict[str, Any]] = [
+    "notify",
+    {"set_tweak": "sound", "value": "legacy-module"},
+]
 
 
 class WrooteCallPushRuleTestCase(HomeserverTestCase):
@@ -136,7 +142,9 @@ class WrooteCallPushRuleTestCase(HomeserverTestCase):
 
     def _add_legacy_module_rule(self) -> None:
         """The per-user rule the `eurochat_voip_pushrules` module writes on login:
-        bare rule id, same conditions and actions as the server rule."""
+        bare rule id, same conditions as the server rule. The module uses the same
+        actions as the server rule; here they get a recognisable sound value so the
+        result shows which rule matched."""
         self.get_success(
             self.hs.get_datastores().main.add_push_rule(
                 self.alice,
@@ -150,15 +158,14 @@ class WrooteCallPushRuleTestCase(HomeserverTestCase):
                         "pattern": "ringing",
                     },
                 ],
-                actions=RING_ACTIONS,
+                actions=LEGACY_TEST_ACTIONS,
             )
         )
 
     @override_config(ENABLED)
-    def test_no_double_notification_with_the_legacy_module_rule(self) -> None:
+    def test_server_rule_wins_over_the_legacy_module_rule(self) -> None:
         """During the transition the module rule and the server rule both match. The
-        first match wins, so Alice gets exactly one set of actions: one push.
-        (`_actions_for_alice` asserts a single row.)"""
+        first match wins: Alice gets the server rule's actions, once."""
         self._add_legacy_module_rule()
         self.assertEqual(self._actions_for_alice(RINGING), RING_ACTIONS)
 
@@ -177,7 +184,11 @@ class WrooteCallPushRuleTestCase(HomeserverTestCase):
             access_token=self.token,
         )
         self.assertEqual(channel.code, 200, channel.json_body)
-        self.assertEqual(self._actions_for_alice(RINGING), RING_ACTIONS)
+        self.assertEqual(self._actions_for_alice(RINGING), LEGACY_TEST_ACTIONS)
+
+    @override_config(ENABLED)
+    def test_call_invite_with_a_non_empty_state_key_does_not_ring(self) -> None:
+        self.assertIsNone(self._actions_for_alice(RINGING, state_key="@bob:test"))
 
     def test_rule_is_not_addressable_when_disabled(self) -> None:
         """Without the option the rule does not exist, also not for the API."""

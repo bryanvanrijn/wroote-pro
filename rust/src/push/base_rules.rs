@@ -62,18 +62,23 @@ const RING_ACTION: Action = Action::SetTweak(SetTweak {
 
 /// Wroote Pro: server-default rule for EuroChat call invites.
 ///
-/// EuroChat clients ring on `eu.eurochat.call.invite` events whose
-/// `content.status` is `ringing`. Cancellations carry `active: false` and no
-/// `status`, so they never match. Shipping this as a server-default rule
-/// replaces a per-user rule that a module used to write on every login, which
-/// forced all logins onto the push-rules writer.
+/// EuroChat clients ring on `eu.eurochat.call.invite` state events (state key
+/// `""`) whose `content.status` is `ringing`. Cancellations carry
+/// `active: false` and no `status`, so they never match; timeline events of
+/// this type never match either, so only members allowed to send that state
+/// event (power level 50 by default) can make others ring. Shipping this as a
+/// server-default rule replaces a per-user rule that a module used to write
+/// on every login, which forced all logins onto the push-rules writer.
 ///
 /// It sits directly after `.m.rule.master`, before the user's own override
-/// rules, so it always wins. The `sound` tweak is what makes the HTTP pusher
-/// send the push with `prio: high` (see `synapse/push/httppusher.py`); a
-/// user override that matched first could otherwise demote a ringing call to
-/// a low-priority push. Users can still disable the rule or change its
-/// actions through the push rules API, and the master rule still mutes all.
+/// rules. This deliberately deviates from the Matrix spec, which places
+/// server-default rules after user rules: a user override, including a
+/// per-room mute, does not stop the ring. The `sound` tweak is what makes the
+/// HTTP pusher send the push with `prio: high` (see
+/// `synapse/push/httppusher.py`); a user override that matched first could
+/// otherwise demote a ringing call to a low-priority push. Users can still
+/// disable the rule or change its actions through the push rules API, and the
+/// master rule still mutes all.
 ///
 /// The rule is filtered out unless the `wroote.voip_call_push_rule` config
 /// option is enabled, so a server without that option behaves exactly like
