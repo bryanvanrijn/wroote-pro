@@ -839,8 +839,16 @@ mod tests {
         push_rules_with(msc4075_enabled, false)
     }
 
-    fn push_rules_with(msc4075_enabled: bool, wroote_voip_call_push_rule: bool) -> FilteredPushRules {
-        push_rules_custom(msc4075_enabled, wroote_voip_call_push_rule, vec![], BTreeMap::new())
+    fn push_rules_with(
+        msc4075_enabled: bool,
+        wroote_voip_call_push_rule: bool,
+    ) -> FilteredPushRules {
+        push_rules_custom(
+            msc4075_enabled,
+            wroote_voip_call_push_rule,
+            vec![],
+            BTreeMap::new(),
+        )
     }
 
     fn push_rules_custom(
@@ -870,7 +878,10 @@ mod tests {
 
     /// Builds an evaluator for an event of the given type with an optional
     /// `content.status` field, sent to a room of ten members without mentions.
-    fn build_status_evaluator(event_type: &'static str, status: Option<&'static str>) -> PushRuleEvaluator {
+    fn build_status_evaluator(
+        event_type: &'static str,
+        status: Option<&'static str>,
+    ) -> PushRuleEvaluator {
         let mut flattened_keys = BTreeMap::new();
         flattened_keys.insert(
             "type".to_string(),
