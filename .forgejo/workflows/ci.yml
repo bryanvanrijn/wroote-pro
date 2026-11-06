@@ -1,0 +1,37 @@
+# CI for Wroote Pro on the Forgejo runner of git.greenmango.nl (ADR-0002 in greenmango-infra).
+#
+# Once .forgejo/workflows exists, Forgejo ignores the upstream workflows in .github/workflows.
+# The job fetches the commit as an archive and runs the checks in a throwaway container through the
+# runner's rootless Docker, exactly like the local proof run (see .forgejo/ci/test.sh). The only
+# credential is the automatic job token, used in a header and masked in the log.
+name: ci
+
+on:
+  push:
+    branches: [main, "wroote/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: docker
+    container:
+      image: docker.io/library/docker:29-cli@sha256:2357639ad1ea7d0194134bf3292622fd4e562483966ed674e5d7c945b5f3b28d
+    timeout-minutes: 55
+    steps:
+      - name: Checks in a throwaway container (Rust 1.87, as upstream)
+        env:
+          FJ_TOKEN: ${{ forgejo.token }}
+          FJ_SERVER: ${{ forgejo.server_url }}
+          FJ_REPO: ${{ forgejo.repository }}
+          FJ_SHA: ${{ forgejo.sha }}
+          RUST_IMAGE: docker.io/library/rust:1.87-bookworm@sha256:251cec8da4689d180f124ef00024c2f83f79d9bf984e43c180a598119e326b84
+        run: |
+          set -eu
+          set -o pipefail
+          echo "commit: $FJ_SHA"
+          wget -q -O- --header "Authorization: token $FJ_TOKEN" \
+              "$FJ_SERVER/api/v1/repos/$FJ_REPO/archive/$FJ_SHA.tar.gz" \
+            | docker run --rm -i --name "wroote-ci-$FJ_SHA" --cpus 5 --memory 4800m "$RUST_IMAGE" \
+                bash -c 'set -e; mkdir -p /src; tar -xzf - -C /src --strip-components=1; cd /src; bash .forgejo/ci/test.sh'
