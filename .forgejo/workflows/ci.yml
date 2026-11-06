@@ -31,7 +31,18 @@ jobs:
           set -eu
           set -o pipefail
           echo "commit: $FJ_SHA"
+          rc=0
           wget -q -O- --header "Authorization: token $FJ_TOKEN" \
               "$FJ_SERVER/api/v1/repos/$FJ_REPO/archive/$FJ_SHA.tar.gz" \
             | docker run --rm -i --name "wroote-ci-$FJ_SHA" --cpus 5 --memory 4800m "$RUST_IMAGE" \
-                bash -c 'set -e; mkdir -p /src; tar -xzf - -C /src --strip-components=1; cd /src; bash .forgejo/ci/test.sh'
+                bash -c 'set -e; mkdir -p /src; tar -xzf - -C /src --strip-components=1; cd /src; bash .forgejo/ci/test.sh' \
+            2>&1 | tee /tmp/ci.log || rc=$?
+          # One commit status per check (wroote-ci/<check>), readable in the PR and through the API.
+          grep -E '^RESULT [a-z0-9-]+: ' /tmp/ci.log | while read -r _ name verdict _; do
+            name=${name%:}; state=success; [ "$verdict" = OK ] || state=failure
+            wget -q -O /dev/null --header "Authorization: token $FJ_TOKEN" --header 'Content-Type: application/json' \
+              --post-data "{\"context\":\"wroote-ci/$name\",\"state\":\"$state\",\"description\":\"$verdict\"}" \
+              "$FJ_SERVER/api/v1/repos/$FJ_REPO/statuses/$FJ_SHA" || echo "could not set status for $name"
+          done
+          grep -E '^TOTAL: ' /tmp/ci.log || echo "TOTAL line missing"
+          exit "$rc"
