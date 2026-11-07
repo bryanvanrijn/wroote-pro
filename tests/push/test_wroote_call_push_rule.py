@@ -34,8 +34,7 @@ LEGACY_MODULE_RULE_ID = "eu.eurochat.voip.call.invite"
 ENABLED = {"wroote": {"voip_call_push_rule": True}}
 
 # What the EuroChat clients send to start ringing and to cancel: a state event with
-# state key "" (web: packages/web/src/services/matrixClient.ts; iOS:
-# MatrixService.sendCallInvite in wroote-ios).
+# state key "" (the EuroChat web and iOS clients).
 RINGING = {"active": True, "status": "ringing", "call_id": "c1"}
 CANCELLED = {"active": False, "call_id": "c1"}
 

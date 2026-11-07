@@ -1,5 +1,20 @@
-.. image:: https://github.com/element-hq/synapse/raw/develop/docs/element_logo_white_bg.svg
-   :height: 60px
+**Wroote Pro: a fork of Synapse, maintained by Wroote**
+
+Wroote Pro is a modified version of Synapse, the homeserver for the Matrix
+protocol written by Element. Wroote maintains it for the EuroChat platform.
+It is not an Element product and Element provides no support for it.
+
+- Primary repository: https://git.greenmango.nl/wroote/wroote-pro
+  (the GitHub repository is a read-only mirror; issues and changes go to the
+  primary repository).
+- What Wroote changed, and the licence of those changes: see ``NOTICE``.
+  Without a ``wroote`` configuration section the server behaves like upstream
+  Synapse v1.164.2.
+- Security reports: see ``SECURITY.md``.
+
+The upstream Synapse README follows unchanged below.
+
+----
 
 **Element Synapse - Matrix homeserver implementation**
 

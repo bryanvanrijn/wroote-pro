@@ -1,4 +1,4 @@
-# CI for Wroote Pro on the Forgejo runner of git.greenmango.nl (ADR-0002 in greenmango-infra).
+# CI for Wroote Pro on the Forgejo runner of git.greenmango.nl.
 #
 # Once .forgejo/workflows exists, Forgejo ignores the upstream workflows in .github/workflows.
 # The job fetches the commit as an archive and runs the checks in a throwaway container through the

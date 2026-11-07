@@ -1,0 +1,58 @@
+Wroote Pro
+Copyright (C) 2026 Wroote
+
+Wroote Pro is a modified version of Synapse, a homeserver for the Matrix protocol.
+
+Synapse
+  Copyright 2014-2021 The Matrix.org Foundation C.I.C.
+  Copyright (C) 2023-2026 New Vector Ltd (Element)
+  and contributors.
+  Upstream: https://github.com/element-hq/synapse
+  Base version of this fork: v1.164.2
+
+Licence
+  Synapse is available under the GNU Affero General Public License version 3
+  (see LICENSE-AGPL-3.0). The file headers state the licence of each file.
+  Element also offers Synapse under a commercial licence (see LICENSE-COMMERCIAL).
+  That offer comes from Element, covers Element's code obtained from Element,
+  and does not extend to the modifications made in this fork.
+  Wroote's modifications are licensed under the GNU Affero General Public
+  License, version 3 or (at your option) any later version, as stated in the
+  file headers.
+
+Modifications by Wroote (AGPL-3.0, section 5(a))
+  This fork changes the following files relative to Synapse v1.164.2.
+  The complete and dated history of every change is in the git history of
+  this repository.
+
+  Added (2026-11-06):
+    synapse/config/wroote.py
+    tests/config/test_wroote.py
+    tests/push/test_wroote_call_push_rule.py
+    .forgejo/workflows/ci.yml
+    .forgejo/ci/test.sh
+    .forgejo/ci/poetry-requirements.txt
+    NOTICE, SECURITY.md
+
+  Modified (2026-11-06 / 2026-11-07):
+    README.rst
+    docs/usage/configuration/config_documentation.md
+    rust/benches/evaluator.rs
+    rust/src/push/base_rules.rs
+    rust/src/push/evaluator.rs
+    rust/src/push/mod.rs
+    schema/synapse-config.schema.yaml
+    scripts-dev/gen_config_documentation.py
+    synapse/config/_base.pyi
+    synapse/config/homeserver.py
+    synapse/handlers/push_rules.py
+    synapse/storage/databases/main/push_rule.py
+    synapse/synapse_rust/push.pyi
+
+  Removed (2026-11-07):
+    .github/dependabot.yml
+
+  Summary of the functional change: an optional server-default push rule for
+  EuroChat call invites, behind the `wroote.voip_call_push_rule` option
+  (default off). Without the `wroote` configuration section the server behaves
+  like upstream Synapse.
