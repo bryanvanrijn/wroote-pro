@@ -3,7 +3,7 @@
 # Mirrors what upstream CI does for the parts we change: rustfmt (pinned nightly), clippy -D warnings,
 # cargo test, benchmark build, ruff, mypy, and trial (our own tests plus a regression set).
 #
-# Network during the run, per the ADR-0002 egress list (greenmango-infra, amendment 2026-11-06):
+# Network during the run, per the egress policy of the CI runner:
 #   deb.debian.org over https (signed Release files), static.rust-lang.org (rustup verifies sha256),
 #   crates.io (Cargo.lock checksums), PyPI (poetry.lock hashes; poetry itself via --require-hashes).
 # Exact versions of what was fetched are printed in the log. A prebuilt CI image is the follow-up.
