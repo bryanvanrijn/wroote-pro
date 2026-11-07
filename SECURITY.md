@@ -5,7 +5,7 @@
 Please do not open a public issue for a security problem.
 
 Report vulnerabilities in the changes Wroote made (see `NOTICE`) privately to:
-**CONTACT_TO_BE_PROVIDED_BY_WROOTE**
+**security@wroote.eu**
 
 Include the affected version or commit, a description, and steps to reproduce.
 We acknowledge reports and coordinate disclosure with the reporter.
