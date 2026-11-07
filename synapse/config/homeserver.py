@@ -68,6 +68,7 @@ from .user_directory import UserDirectoryConfig
 from .user_types import UserTypesConfig
 from .voip import VoipConfig
 from .workers import WorkerConfig
+from .wroote import WrooteConfig
 
 
 class HomeServerConfig(RootConfig):
@@ -122,6 +123,7 @@ class HomeServerConfig(RootConfig):
         AutoAcceptInvitesConfig,
         UserTypesConfig,
         TaskSchedulerConfig,
+        WrooteConfig,
         # This must be last, as it checks for conflicts with other config options.
         MasConfig,
     ]

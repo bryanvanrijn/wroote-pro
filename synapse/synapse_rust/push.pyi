@@ -51,6 +51,7 @@ class FilteredPushRules:
         msc4075_enabled: bool,
         msc4210_enabled: bool,
         msc4306_enabled: bool,
+        wroote_voip_call_push_rule: bool,
     ): ...
     def rules(self) -> Collection[tuple[PushRule, bool]]: ...
 

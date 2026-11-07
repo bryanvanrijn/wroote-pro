@@ -34,6 +34,7 @@ from twisted.internet import defer
 
 from synapse.api.errors import Codes, StoreError, SynapseError
 from synapse.config.homeserver import ExperimentalConfig
+from synapse.config.wroote import WrooteConfig
 from synapse.logging.context import make_deferred_yieldable, run_in_background
 from synapse.replication.tcp.streams import PushRulesStream
 from synapse.storage._base import SQLBaseStore
@@ -68,6 +69,7 @@ def _load_rules(
     rawrules: list[tuple[str, int, str, str]],
     enabled_map: dict[str, bool],
     experimental_config: ExperimentalConfig,
+    wroote_config: WrooteConfig,
 ) -> FilteredPushRules:
     """Take the DB rows returned from the DB and convert them into a full
     `FilteredPushRules` object.
@@ -82,6 +84,7 @@ def _load_rules(
             enabled. This might not include all rule IDs from rawrules.
         experimental_config: The `experimental_features` section of the Synapse
             config. (Used to check if various features are enabled.)
+        wroote_config: The `wroote` section of the config (Wroote Pro options).
 
     Returns:
         A new FilteredPushRules object.
@@ -97,13 +100,16 @@ def _load_rules(
         for rawrule in rawrules
     ]
 
-    return filter_push_rules(PushRules(ruleslist), enabled_map, experimental_config)
+    return filter_push_rules(
+        PushRules(ruleslist), enabled_map, experimental_config, wroote_config
+    )
 
 
 def filter_push_rules(
     push_rules: PushRules,
     enabled_map: dict[str, bool],
     experimental_config: ExperimentalConfig,
+    wroote_config: WrooteConfig,
 ) -> FilteredPushRules:
     """Combine a user's rules with the server-default rules, keeping only the
     server-default rules enabled by the server's configuration.
@@ -114,6 +120,7 @@ def filter_push_rules(
             enabled. This might not include all rule IDs from push_rules.
         experimental_config: The `experimental_features` section of the Synapse
             config. (Used to check if various features are enabled.)
+        wroote_config: The `wroote` section of the config (Wroote Pro options).
 
     Returns:
         A new FilteredPushRules object.
@@ -128,6 +135,7 @@ def filter_push_rules(
         msc4075_enabled=experimental_config.msc4075_enabled,
         msc4210_enabled=experimental_config.msc4210_enabled,
         msc4306_enabled=experimental_config.msc4306_enabled,
+        wroote_voip_call_push_rule=wroote_config.voip_call_push_rule,
     )
 
 
@@ -262,6 +270,7 @@ class PushRulesWorkerStore(
             [(row[0], row[1], row[3], row[4]) for row in rows],
             enabled_map,
             self.hs.config.experimental,
+            self.hs.config.wroote,
         )
 
     async def get_push_rules_enabled_for_user(self, user_id: str) -> dict[str, bool]:
@@ -348,7 +357,10 @@ class PushRulesWorkerStore(
 
         for user_id, rules in raw_rules.items():
             results[user_id] = _load_rules(
-                rules, enabled_map_by_user.get(user_id, {}), self.hs.config.experimental
+                rules,
+                enabled_map_by_user.get(user_id, {}),
+                self.hs.config.experimental,
+                self.hs.config.wroote,
             )
 
         return results

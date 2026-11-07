@@ -237,6 +237,13 @@ SECTION_HEADERS = {
             "Configuration settings related to automatically accepting invites."
         ),
     },
+    "wroote": {
+        "title": "Wroote Pro",
+        "description": (
+            "Options that only exist in Wroote Pro, a homeserver for the Matrix "
+            "protocol based on Synapse."
+        ),
+    },
 }
 INDENT = "  "
 

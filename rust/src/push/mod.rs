@@ -554,6 +554,8 @@ pub struct FilteredPushRules {
     msc4075_enabled: bool,
     msc4210_enabled: bool,
     msc4306_enabled: bool,
+    /// Wroote Pro: `wroote.voip_call_push_rule` config option.
+    wroote_voip_call_push_rule: bool,
 }
 
 #[pymethods]
@@ -570,6 +572,7 @@ impl FilteredPushRules {
         msc4075_enabled: bool,
         msc4210_enabled: bool,
         msc4306_enabled: bool,
+        wroote_voip_call_push_rule: bool,
     ) -> Self {
         Self {
             push_rules,
@@ -581,6 +584,7 @@ impl FilteredPushRules {
             msc4075_enabled,
             msc4210_enabled,
             msc4306_enabled,
+            wroote_voip_call_push_rule,
         }
     }
 
@@ -641,6 +645,13 @@ impl FilteredPushRules {
                 }
 
                 if !self.msc4306_enabled && rule.rule_id.contains("/.io.element.msc4306.rule.") {
+                    return false;
+                }
+
+                // Wroote Pro: the EuroChat call-invite rule is opt-in.
+                if !self.wroote_voip_call_push_rule
+                    && rule.rule_id == base_rules::WROOTE_VOIP_CALL_RULE_ID
+                {
                     return false;
                 }
 
